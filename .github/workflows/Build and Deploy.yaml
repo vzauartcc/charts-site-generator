@@ -8,15 +8,15 @@ jobs:
   Build-and-Push:
     runs-on: ubuntu-latest
     steps:
-    - name: Check date condition
-      run: |
-        start_date="2023-10-05"
-        current_date=$(date +"%Y-%m-%d")
-        days_since_start=$(( ( $(date -d "$current_date" +%s) - $(date -d "$start_date" +%s) ) / 86400 ))
-        if (( days_since_start % 28 != 0 )); then
-         echo "Not the right day to run the job. Exiting early."
-          exit 1
-        fi
+    #- name: Check date condition
+      #run: |
+      #  start_date="2023-10-05"
+      #  current_date=$(date +"%Y-%m-%d")
+      #  days_since_start=$(( ( $(date -d "$current_date" +%s) - $(date -d "$start_date" +%s) ) / 86400 ))
+      #  if (( days_since_start % 28 != 0 )); then
+      #   echo "Not the right day to run the job. Exiting early."
+      #    exit 1
+      #  fi
     # Your other steps go here
     - name: Checkout master
       uses: actions/checkout@v2
