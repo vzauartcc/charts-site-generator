@@ -55,7 +55,11 @@ let parseChart (chart: ChartDto) =
     | None -> None
 
 let mapCharts (airports: Airport seq) (charts: ChartsResponse) =
-    let sanitizeDtos = List.map parseChart >> List.choose id >> List.sortBy (chartToInt)
+    let sanitizeDtos =
+        List.map parseChart
+        >> List.choose id
+        >> List.distinctBy (fun c -> (c.Name, c.PdfPath)) // de-duplicate exact matches
+        >> List.sortBy chartToInt
 
     let getChartsForId key =
         match charts.TryGetValue($"K{key}") with
