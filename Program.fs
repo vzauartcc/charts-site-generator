@@ -1,4 +1,4 @@
-open FSharp.Configuration
+﻿open FSharp.Configuration
 open System.Text.Json
 open System.Net.Http
 open System.Collections.Generic
@@ -10,34 +10,21 @@ open System.IO
 type Config = YamlConfig<"site_config.yml">
 
 type ChartDto =
-    { chart_name: string
-      chart_sequence: string
-      pdf_name: string
-      pdf_url: string
-      did_change: bool }
-
-type ChartsByType =
-    { airport_diagram: ChartDto list option
-      general: ChartDto list option
-      departure: ChartDto list option
-      arrival: ChartDto list option
-      approach: ChartDto list option }
-
-type AirportData =
-    { city: string
-      state_abbr: string
+    { state: string
       state_full: string
-      country: string
-      icao_ident: string
-      faa_ident: string
+      city: string
+      volume: string
       airport_name: string
-      is_military: bool }
+      military: string
+      faa_ident: string
+      icao_ident: string
+      chart_seq: string
+      chart_code: string
+      chart_name: string
+      pdf_name: string
+      pdf_path: string }
 
-type ChartsResponse =
-    { airport_data: AirportData
-      charts: ChartsByType }
-
-type ChartResult = string * ChartsResponse
+type ChartsResponse = Dictionary<string, list<ChartDto>>
 
 let getAllAirports (config: Config) =
     [ Seq.map (fun a -> { Id = a; Class = Bravo }) config.Airports.Bravo
@@ -50,6 +37,7 @@ let makeUrl airports =
         airports
         |> Seq.map (fun a -> $"K{a}")
         |> String.concat ","
+
     $"https://api-v2.aviationapi.com/v2/charts?airport={airportsQueryString}"
 
 let fetchCharts (url: string) =
@@ -57,57 +45,42 @@ let fetchCharts (url: string) =
         let httpClient = new HttpClient()
         let! response = httpClient.GetAsync(url)
         let! stream = response.Content.ReadAsStreamAsync()
-        let options = JsonSerializerOptions()
-        options.PropertyNameCaseInsensitive <- true
-        let! doc = JsonDocument.ParseAsync(stream)
-        let results = ResizeArray<ChartResult>()
-
-        for prop in doc.RootElement.EnumerateObject() do
-            let charts = JsonSerializer.Deserialize<ChartsResponse>(prop.Value.GetRawText(), options)
-            results.Add((prop.Name, charts))
-
-        return List.ofSeq results
+        return JsonSerializer.Deserialize<ChartsResponse>(stream)
     }
 
-let parseChart (chartType: string) (chart: ChartDto) =
-    match parseChartType chartType with
+let parseChart (chart: ChartDto) =
+    match parseChartType chart.chart_code with
     | Some t ->
         Some
-            { Airport = "" // Could optionally set from airport metadata
+            { Airport = chart.airport_name
               Name = chart.chart_name
               Type = t
-              PdfPath = chart.pdf_url }
+              PdfPath = chart.pdf_path }
     | None -> None
 
-let mapCharts (airports: Airport seq) (results: ChartResult list) =
-    let sanitizeCharts (chartType: string) (charts: ChartDto list option) =
-        match charts with
-        | Some cs ->
-            cs
-            |> List.map (parseChart chartType)
-            |> List.choose id
-        | None -> []
+let mapCharts (airports: Airport seq) (charts: ChartsResponse) =
+    let sanitizeDtos =
+        List.map parseChart
+        >> List.choose id
+        >> List.distinctBy (fun c -> (c.Name, c.PdfPath)) // de-duplicate exact matches
+        >> List.sortBy chartToInt
 
-    let flattenCharts (airportId: string, response: ChartsResponse) =
-        [
-            sanitizeCharts "airport_diagram" response.charts.airport_diagram
-            sanitizeCharts "general" response.charts.general
-            sanitizeCharts "departure" response.charts.departure
-            sanitizeCharts "arrival" response.charts.arrival
-            sanitizeCharts "approach" response.charts.approach
-        ]
-        |> List.collect id
-        |> List.distinctBy (fun c -> (c.Name, c.PdfPath))
-        |> List.sortBy chartToInt
+    let getChartsForId key =
+        match charts.TryGetValue($"K{key}") with
+        | true, dtos -> sanitizeDtos dtos
+        | false, _ ->
+            match charts.TryGetValue($"{key}") with
+            | true, dtos -> sanitizeDtos dtos
+            | false, _ -> []
 
-    let chartMap =
-        results
-        |> List.map (fun (id, r) -> (id, flattenCharts (id, r)))
-        |> Map.ofList
+    let mapped =
+        (Map.empty, airports)
+        ||> Seq.fold (fun map airport -> Map.add airport.Id (getChartsForId airport.Id) map)
 
     airports
-    |> Seq.map (fun a -> (a, Map.tryFind a.Id chartMap |> Option.defaultValue []))
+    |> Seq.map (fun a -> (a, mapped.Item a.Id))
     |> Seq.filter (fun (_, c) -> not c.IsEmpty)
+
 
 [<EntryPoint>]
 let main args =
@@ -118,21 +91,16 @@ let main args =
 
     let config = Config()
     let airports = getAllAirports config
-    let chartsResponse =
-        airports
-        |> Seq.map (fun a -> a.Id)
-        |> makeUrl
-        |> fetchCharts
-        |> Async.AwaitTask
-        |> Async.RunSynchronously
+    let chartsResponse = airports |> Seq.map (fun a -> a.Id) |> makeUrl |> fetchCharts
 
-    let viewModel = mapCharts airports chartsResponse
+    let viewModel = mapCharts airports chartsResponse.Result
 
-    if not (Directory.Exists(outputDir)) then
-        Directory.CreateDirectory(outputDir) |> ignore
+    match Directory.Exists(outputDir) with
+    | true -> ()
+    | false -> do Directory.CreateDirectory(outputDir) |> ignore
 
     renderPage config.Title viewModel
     |> RenderView.AsString.htmlDocument
-    |> fun s -> File.WriteAllText($"{outputDir}/index.html", s)
+    |> (fun s -> File.WriteAllText($"{outputDir}/index.html", s))
 
     0
