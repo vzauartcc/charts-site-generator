@@ -33,12 +33,8 @@ let getAllAirports (config: Config) =
     |> Seq.collect id
 
 let makeUrl airports =
-    let airportsQueryString =
-        airports
-        |> Seq.map (fun a -> $"K{a}")
-        |> String.concat ","
-
-    $"https://api-v2.aviationapi.com/v2/charts?airport={airportsQueryString}"
+    let airportsQueryString = String.concat "," airports
+    $"https://api.aviationapi.com/v1/charts?apt={airportsQueryString}"
 
 let fetchCharts (url: string) =
     task {
