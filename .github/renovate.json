@@ -5,6 +5,7 @@
     ":disableMajorUpdates",
     "helpers:pinGitHubActionDigests"
   ],
+  "enabled": false,
   "schedule": [
     "* 10-18 * * *"
   ],
