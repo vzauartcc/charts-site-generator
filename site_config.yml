@@ -2,19 +2,18 @@
 Airports:
   Bravo:
     - ORD
+    - MDW
   Charlie:
     - CID
     - CMI
     - FWA
     - GRR
-    - MDW
     - MKE
     - MLI
     - MSN
     - PIA
     - SBN
   Delta:
-    - ALO
     - ARR
     - AZO
     - BMI
