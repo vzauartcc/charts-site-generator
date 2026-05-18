@@ -1,3 +1,7 @@
+This project has been archived, replaced by [vzauartcc/charts-site](https://github.com/vzauartcc/charts-site).
+
+---
+
 # What is this?
 A small program to generate static assets (html, CSS, js) for an FAA charts quick reference page. Inspired by https://charts.bvartcc.com/, using data and charts from https://www.aviationapi.com/.
 
